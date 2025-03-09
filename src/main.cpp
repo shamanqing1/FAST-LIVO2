@@ -2,10 +2,10 @@
 
 int main(int argc, char **argv)
 {
-  ros::init(argc, argv, "laserMapping");
-  ros::NodeHandle nh;
+  rclcpp::init(argc, argv);
+  std::shared_ptr<rclcpp::Node> nh = rclcpp::Node::make_shared("laserMapping");
   image_transport::ImageTransport it(nh);
-  LIVMapper mapper(nh); 
+  LIVMapper mapper(nh);
   mapper.initializeSubscribersAndPublishers(nh, it);
   mapper.run();
   return 0;

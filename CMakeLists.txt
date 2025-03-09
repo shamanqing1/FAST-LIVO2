@@ -1,8 +1,10 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.8)
 project(fast_livo)
 
 set(CMAKE_BUILD_TYPE "Release")
-message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -58,11 +60,17 @@ else()
   message(STATUS "Single core detected. Multithreading disabled.")
 endif()
 
+# find dependencies
+find_package(ament_cmake_auto REQUIRED)
+ament_auto_find_build_dependencies()
+
 # Check for OpenMP support
 find_package(OpenMP QUIET)
 if(OpenMP_CXX_FOUND)
   message(STATUS "OpenMP found")
-  add_compile_options(${OpenMP_CXX_FLAGS})
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+  # add_compile_options(${OpenMP_CXX_FLAGS})
 else()
   message(STATUS "OpenMP not found, proceeding without it")
 endif()
@@ -75,72 +83,37 @@ else()
   message(STATUS "mimalloc not found, proceeding without it")
 endif()
 
-# Find catkin and required dependencies
-find_package(catkin REQUIRED COMPONENTS
-  geometry_msgs
-  nav_msgs
-  sensor_msgs
-  roscpp
-  rospy
-  std_msgs
-  pcl_ros
-  tf
-  livox_ros_driver
-  message_generation
-  eigen_conversions
-  vikit_common
-  vikit_ros
-  cv_bridge
-  image_transport
-)
-
-find_package(Eigen3 REQUIRED)
-find_package(PCL REQUIRED)
-find_package(OpenCV REQUIRED)
-find_package(Sophus REQUIRED)
-find_package(Boost REQUIRED COMPONENTS thread)
-
-# Define the catkin package
-catkin_package(
-  CATKIN_DEPENDS geometry_msgs nav_msgs roscpp rospy std_msgs message_runtime cv_bridge vikit_common vikit_ros image_transport
-  DEPENDS EIGEN3 PCL OpenCV Sophus
-)
-
-# Include directories for dependencies
+# Include directories
 include_directories(
-  ${catkin_INCLUDE_DIRS}
-  ${EIGEN3_INCLUDE_DIR}
-  ${PCL_INCLUDE_DIRS}
-  ${OpenCV_INCLUDE_DIRS}
-  ${Sophus_INCLUDE_DIRS}
   include
 )
 
 # Add libraries
-add_library(vio src/vio.cpp src/frame.cpp src/visual_point.cpp)
-add_library(lio src/voxel_map.cpp)
-add_library(pre src/preprocess.cpp)
-add_library(imu_proc src/IMU_Processing.cpp)
-add_library(laser_mapping src/LIVMapper.cpp)
+ament_auto_add_library(vio src/vio.cpp src/frame.cpp src/visual_point.cpp)
+ament_auto_add_library(lio src/voxel_map.cpp)
+ament_auto_add_library(pre src/preprocess.cpp)
+ament_auto_add_library(imu_proc src/IMU_Processing.cpp)
+ament_auto_add_library(laser_mapping src/LIVMapper.cpp)
 
 # Add the main executable
-add_executable(fastlivo_mapping src/main.cpp)
+ament_auto_add_executable(fastlivo_mapping src/main.cpp)
+target_link_libraries(fastlivo_mapping vio lio pre imu_proc laser_mapping)
 
-# Link libraries to the executable
-target_link_libraries(fastlivo_mapping
-  laser_mapping
-  vio
-  lio
-  pre
-  imu_proc
-  ${catkin_LIBRARIES}
-  ${PCL_LIBRARIES}
-  ${OpenCV_LIBRARIES}
-  ${Sophus_LIBRARIES}
-  ${Boost_LIBRARIES}
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  # the following line skips the linter which checks for copyrights
+  # comment the line when a copyright and license is added to all source files
+  set(ament_cmake_copyright_FOUND TRUE)
+  # the following line skips cpplint (only works in a git repo)
+  # comment the line when this package is in a git repo and when
+  # a copyright and license is added to all source files
+  set(ament_cmake_cpplint_FOUND TRUE)
+  ament_lint_auto_find_test_dependencies()
+endif()
+
+install(DIRECTORY
+  launch config rviz_cfg
+  DESTINATION share/${PROJECT_NAME}
 )
 
-# Link mimalloc if found
-if(mimalloc_FOUND)
-  target_link_libraries(fastlivo_mapping mimalloc)
-endif()
+ament_auto_package()
